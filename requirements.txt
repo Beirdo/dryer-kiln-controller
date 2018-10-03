@@ -1,0 +1,6 @@
+wiringpi
+numpy
+scipy
+adafruit-io
+gekko
+
