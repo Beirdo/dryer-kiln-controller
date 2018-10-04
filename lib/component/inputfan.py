@@ -1,7 +1,7 @@
 # vim:ts=4:sw=4:ai:et:si:sts=4
 
 import logging
-from threading import Thread
+from threading import Thread, Lock
 
 
 logger = logging.getLogger(__name__)
@@ -18,24 +18,36 @@ class InputFan(Thread):
         self.abort = False
         self.force = False
         self.onoff = False
+        self.lock = Lock()
         self.setGPIO(False)
 
     def force_power(self, onoff):
-        logger.info("%s input fan" % ("Forcing" if onoff else "Unforcing"))
-        self.force = onoff
+        with self.lock:
+            logger.info("%s input fan" % ("Forcing" if onoff else "Unforcing"))
+            self.force = onoff
 
     def run(self):
         logger.info("Starting input fan control loop")
         while not self.abort:
+            startTime = time.time()
             ambientTemperature = 0.0
             temperature = 0.0
-            if not self.force:
+
+            with self.lock:
+                force = self.force
+                old_onoff = self.onoff
+
+            if not force:
                 ambientTemperature = self.getAmbientTemperature()
                 temperature = self.getTemperature()
 
-            onoff = self.force or temperature > ambientTemperature
-            if onoff != self.onoff:
+            onoff = force or temperature > ambientTemperature
+            if onoff != old_onoff:
                 self.setGPIO(onoff)
+                self.onoff = onoff
+
+            delay = max(self.period - (time.time() - startTime), 0.001)
+            time.sleep(delay)
 
         logger.info("Ending input fan control loop")
 
