@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class PID(Thread):
     def __init__(self, kp, ki, kd, period, setpoint=None, delay=None, 
                  initial=None, off=None, input_callback=None,
-                 output_callback=None):
+                 output_callback=None, output_filter_callback=None):
         Thread.__init__(self)
         self.kp = kp
         self.ki = ki
@@ -27,6 +27,10 @@ class PID(Thread):
         self.output_callback = output_callback
         if not output_callback or not hasattr(output_callback, "__call__"):
             raise Exception("Unusable output_callback")
+        self.output_filter_callback = output_filter_callback
+        if output_filter_callback is not None and \
+                not hasattr(output_filter_callback, "__call__"):
+            raise Exception("Unusable output_filter_callback")
         self.last_input = 0.0
         self.limit_low = {}
         self.limit_high = {}
@@ -64,6 +68,10 @@ class PID(Thread):
                 self.integrator = self._limit(self.integrator, "integrator")
 
             output = kp * error + self.integrator - kd * delta
+
+            if self.output_filter_callback:
+                output = self.output_filter_callback(output)
+
             output = self._limit(output, "output")
             self.output_callback(output)
 
